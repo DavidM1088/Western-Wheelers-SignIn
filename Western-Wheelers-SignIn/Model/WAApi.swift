@@ -25,7 +25,7 @@ class NetworkReachability: ObservableObject {
     }
 }
 
-class WAApi : ObservableObject {
+class WAApi { //}: ObservableObject {
     private var token: String! = nil
     private var accountId:String! = nil
 
@@ -46,25 +46,29 @@ class WAApi : ObservableObject {
         }
     }
             
-    func runTask(req:URLRequest) -> Data? {
+    func runTask(req:URLRequest) -> (Data?, String?) {
         let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
         var result:Data? = nil
+        var errMsg:String? = nil
         Messages.instance.clearError()
         let task = URLSession.shared.dataTask(with: req) { data, response, error in
             if let error = error {
-                Messages.instance.reportError(context: "WAApi", msg: error.localizedDescription)
+                errMsg = error.localizedDescription
+                //Messages.instance.reportError(context: "WAApi", msg: error.localizedDescription)
             }
             else {
                 if let response = response as? HTTPURLResponse {
                     if response.statusCode != 200 && response.statusCode != 501 {
-                        Messages.instance.reportError(context: "WAApi", msg: "http status \(response.statusCode)")
+                        errMsg = "http status \(response.statusCode)"
+                        //Messages.instance.reportError(context: "WAApi", msg: "http status \(response.statusCode)")
                     }
                     else {
                         if let data = data {
                             result = data
                         }
                         else {
-                            Messages.instance.reportError(context: "WAApi", msg: "no data in response")
+                            errMsg = "no data in response"
+                            //Messages.instance.reportError(context: "WAApi", msg: "no data in response")
                         }
                     }
                 }
@@ -73,7 +77,7 @@ class WAApi : ObservableObject {
         }
         task.resume()
         semaphore.wait()
-        return result
+        return (result, errMsg)
     }
     
     func apiCall(context:String, url:String, username:String?, password:String?,
@@ -102,10 +106,10 @@ class WAApi : ObservableObject {
         let postString = "grant_type=password&username=\(user)&password=\(pwd)&scope=auto"
         tokenRequest.httpBody = postString.data(using: String.Encoding.utf8);
         
-        let data = self.runTask(req: tokenRequest)
+        let taskResponse = self.runTask(req: tokenRequest)
         
-        guard let tokenData = data else {
-            let msg = "did not receive API token"
+        if let tokenErrMsg = taskResponse.1 {
+            let msg = "WA API:did not receive API token, "+tokenErrMsg
             Messages.instance.reportError(context: "WAApi", msg: msg)
             fail(msg)
             return
@@ -114,7 +118,7 @@ class WAApi : ObservableObject {
         var accountId:String?
         
         do {
-            let json = try JSONSerialization.jsonObject(with: tokenData, options: []) //as? [String: Any]
+            let json = try JSONSerialization.jsonObject(with: taskResponse.0!, options: []) //as? [String: Any]
             if let data = json as? [String: Any] {
                 if let tk = data["access_token"] as? String {
                     token = tk
@@ -135,11 +139,11 @@ class WAApi : ObservableObject {
         let tokenAuth = "Bearer \(token ?? "")"
         request.setValue(tokenAuth, forHTTPHeaderField: "Authorization")
         let apiData = self.runTask(req: request)
-        if let data = apiData {
+        if let data = apiData.0 {
             completion(data)
         }
         else {
-            let errMsg = "\(context): no data returned"
+            let errMsg = "\(context): no data returned, err:\(apiData.1 ?? "")"
             fail(errMsg)
             Messages.instance.reportError(context: "WAApi", msg: errMsg)
         }

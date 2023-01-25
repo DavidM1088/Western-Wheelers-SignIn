@@ -16,7 +16,6 @@ class ClubRides : ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             self.errMsg = nil
             Messages.instance.sendMessage(msg: "Start downloaded of club rides")
-            //sleep(5)
             var eventsUrl = "https://api.wildapricot.org/v2/accounts/$id/events"
             let formatter = DateFormatter()
             let startDate = Calendar.current.date(byAdding: .day, value: 0, to: Date())!
@@ -61,8 +60,7 @@ class ClubRides : ObservableObject {
 
     func loadRides(rawData: Data) {
         var rideList = [ClubRide]()
-        var debug = false
-         if let events = try! JSONSerialization.jsonObject(with: rawData, options: []) as? [String: Any] {
+        if let events = try! JSONSerialization.jsonObject(with: rawData, options: []) as? [String: Any] {
             for (_, val) in events {
                 let rides = val as! NSArray
                 for rideData in rides {
